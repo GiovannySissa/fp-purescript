@@ -1,6 +1,6 @@
 module Ch5 where
 
-import Prelude (Unit, (+), (==), show, discard)
+import Prelude (Unit, (-), (+), (<), (==), (>=), (/=), show, discard, otherwise, negate)
 
 import Data.List (List(..), (:))
 import Effect (Effect)
@@ -101,6 +101,52 @@ last (x) =
   else last (tail' x)
 
 
+{-
+  Section 5.19 to 5.25
+-}
+
+init :: ∀ a. List a -> Maybe (List a)
+init Nil = Nothing
+init l = Just $ go l where
+  go (Nil) = Nil
+  go (_ : Nil) = Nil
+  go (x : xs) = x : go(xs)
+
+uncons :: ∀ a. List a -> Maybe {head:: a, tail:: List a}
+uncons Nil = Nothing
+uncons (x : xs) = Just {head: x, tail: xs}
+
+index :: ∀ a. List a -> Int -> Maybe a
+index Nil _ = Nothing
+index l i = go l i where
+  go :: List a -> Int -> Maybe a
+  go Nil _ = Nothing
+  go (x: xs) ci
+    | ci < 0 = Nothing
+    | ci == 0 = Just x
+    | otherwise = go xs (ci -1) 
+
+infixl 8 index as !!
+
+findIndex :: ∀ a. (a -> Boolean) -> List a -> Maybe Int
+findIndex _ Nil = Nothing
+findIndex pred l = go 0 l where 
+  go :: Int -> List a -> Maybe Int
+  go _ Nil = Nothing
+  go i (x : xs)
+    | pred x = Just i
+    | otherwise = go (i + 1) xs
+
+findLastIndex :: ∀ a. (a -> Boolean) -> List a -> Maybe Int
+findLastIndex _ Nil = Nothing
+findLastIndex pred l = go 0 l Nothing where
+  go _ Nil lst = lst
+  go i (x : xs) lst     
+    | pred x = go (i + 1) xs (Just i)
+    | otherwise = go (i + 1) xs lst
+  
+
+
 test :: Effect Unit
 test = do
   -- log (show (flip const 1 2))
@@ -116,6 +162,24 @@ test = do
   -- log $ show $ head ("abc" : "123" : Nil) 
   -- log $ show $ (tail Nil :: Maybe (List Unit))
   -- log $ show $ tail ("abc" : "123" : "xyz" : Nil) 
-  log $ show $ (last Nil :: Maybe Unit)
-  log $ show $ last ("a" : "b" : "c" : Nil)
-  log $ show $ last ("z" : Nil)
+  -- log $ show $ (last Nil :: Maybe Unit)
+  -- log $ show $ last ("a" : "b" : "c" : Nil)
+  -- log $ show $ last ("z" : Nil)
+  -- log $ show $ init (Nil :: List Unit)
+  -- log $ show $ init (1 : Nil)
+  -- log $ show $ init (1 : 2 : Nil)
+  -- log $ show $ init (1 : 2 : 3 : Nil)
+  -- log $show $uncons (1 : 2 : 3 : Nil)
+  -- log $show $uncons (1 : Nil)
+  -- log $ show $ index (1 : Nil) 4 -- Nothing
+  -- log $ show $ index (1 : 2 : 3 : Nil) 1 -- Just 2
+  -- log $ show $ index (1 : 2 : 3 : Nil) (-1) -- Just 2
+  -- log $ show $ index (Nil :: List Unit) 0
+  -- log $ show $ (1 : 2 : 3 : Nil) !! 1  
+  -- log $ show $ findIndex (_ >= 2)  (1 : 2 : 3 : Nil)
+  -- log $ show $ findIndex (_ >= 99) (1 : 2 : 3 : Nil)
+  -- log $ show $ findIndex (10 /= _) (Nil :: List Int)
+  log $ show $ findLastIndex (_ == 10)  (Nil :: List Int)
+  log $ show $ findLastIndex (_ == 10)  (10 : 5 : 10 : -1 : 2 : 10 : Nil)
+  log $ show $ findLastIndex (_ == 10)  (11 : 12 : 13 : Nil)
+  
