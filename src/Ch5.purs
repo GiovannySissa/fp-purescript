@@ -1,6 +1,6 @@
 module Ch5 where
 
-import Prelude (Unit, (-), (+), (<), (==), (>=), (/=), show, discard, otherwise, negate)
+import Prelude (Unit, (-), (+), (<), (>), (==), (>=), (/=), (<<<), show, discard, otherwise, negate, type (~>))
 
 import Data.List (List(..), (:))
 import Effect (Effect)
@@ -144,6 +144,56 @@ findLastIndex pred l = go 0 l Nothing where
   go i (x : xs) lst     
     | pred x = go (i + 1) xs (Just i)
     | otherwise = go (i + 1) xs lst
+
+{-
+  Section 5.26 to 5.33
+ -}
+
+reverse :: List ~> List
+reverse Nil = Nil
+reverse l = go Nil l where
+  go rev Nil = rev 
+  go rev (x : xs) = go (x : rev) xs
+
+concat :: ∀ a. List (List a) -> List a
+concat Nil = Nil
+concat (Nil : xs) = concat xs
+concat ((x' : xs') : xs) =  x' : concat (xs' : xs)
+
+filter :: ∀ a. (a -> Boolean) -> List a -> List a
+filter _ Nil = Nil
+filter pred (x : xs) =
+  if pred x then x : filter pred xs 
+  else filter pred xs 
+
+-- filter tail recursive version
+filter' :: ∀ a. (a -> Boolean) -> List a -> List a
+filter' pred = reverse <<< go Nil where
+  go fl Nil = fl
+  go fl (x : xs) = if pred x then go (x: fl) xs else go fl xs
+
+
+catMaybes :: ∀ a. List (Maybe a) -> List a
+catMaybes Nil = Nil
+catMaybes (Nothing : xs) = catMaybes xs
+catMaybes (Just(x) : xs) = x : catMaybes xs
+
+-- version using pattern matching
+catMaybes' :: ∀ a. List (Maybe a) -> List a
+catMaybes' Nil = Nil
+catMaybes' (x : xs) = case x of
+  Just(x') -> x' : catMaybes' xs
+  Nothing  -> catMaybes' xs
+
+
+range :: Int -> Int -> List Int
+range start end = go end Nil where
+  next = if (start > end) then 1 else -1  
+  go step l
+    | start == step = start : l    
+    | otherwise =  go (step + next) (step : l)
+
+
   
 
 
@@ -179,7 +229,15 @@ test = do
   -- log $ show $ findIndex (_ >= 2)  (1 : 2 : 3 : Nil)
   -- log $ show $ findIndex (_ >= 99) (1 : 2 : 3 : Nil)
   -- log $ show $ findIndex (10 /= _) (Nil :: List Int)
-  log $ show $ findLastIndex (_ == 10)  (Nil :: List Int)
-  log $ show $ findLastIndex (_ == 10)  (10 : 5 : 10 : -1 : 2 : 10 : Nil)
-  log $ show $ findLastIndex (_ == 10)  (11 : 12 : 13 : Nil)
-  
+  -- log $ show $ findLastIndex (_ == 10)  (Nil :: List Int)
+  -- log $ show $ findLastIndex (_ == 10)  (10 : 5 : 10 : -1 : 2 : 10 : Nil)
+  -- log $ show $ findLastIndex (_ == 10)  (11 : 12 : 13 : Nil)
+  -- log $ show $ reverse (10 : 20 : 30 : Nil)
+  -- log $ show $ concat  ((1 : 2 : 3 : Nil) : (4 : 5 : Nil) : (6 : Nil) : (Nil) : Nil )
+  -- log $ show $ filter (4 > _) $ (1 : 2 : 3 : 4 : 5 : 6 : Nil)
+  -- log $ show $ filter' (4 > _) $ (1 : 2 : 3 : 4 : 5 : 6 : Nil)
+  -- log $ show $ catMaybes (Just 1 : Nothing : Just 3 : Nothing : Just 10 : Nil)
+  -- log $ show $ catMaybes' (Just 1 : Nothing : Just 3 : Nothing : Just 10 : Nil)
+  log $ show $ range 1 10
+  log $ show $ range 3 (-3)
+  log $ show $ range (-1) 0
