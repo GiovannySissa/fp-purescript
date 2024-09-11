@@ -261,9 +261,9 @@ unzip Nil = Tuple Nil Nil
 unzip (Tuple x y : ts) =
   unzip ts # \(Tuple xs ys) -> Tuple (x : xs) (y : ys)  
 
-unzip' :: ∀ a b. List (Tuple a b) -> Tuple (List a) (List b) 
-unzip' Nil = Tuple Nil Nil 
-unzip' (Tuple x y : ts) = 
+-- unzip' :: ∀ a b. List (Tuple a b) -> Tuple (List a) (List b) 
+-- unzip' Nil = Tuple Nil Nil 
+-- unzip' (Tuple x y : ts) = 
 
 
 test :: Effect Unit

@@ -9,6 +9,8 @@ You can edit this file as you like.
     "lists",
     "maybe",
     "tuples",
+    "strings",
+    "newtype",
     "prelude",
     "psci-support"
     ]
