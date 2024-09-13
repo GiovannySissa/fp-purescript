@@ -6,13 +6,14 @@ You can edit this file as you like.
 , dependencies = [ 
     "console",
     "effect",
+    "integers",
     "lists",
     "maybe",
-    "tuples",
-    "strings",
     "newtype",
     "prelude",
-    "psci-support"
+    "strings",
+    "psci-support",
+    "tuples"
     ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]
