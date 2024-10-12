@@ -7,6 +7,7 @@ You can edit this file as you like.
     "console",
     "contravariant",
     "effect",
+    "either",
     "foldable-traversable",
     "integers",
     "lists",

@@ -1,9 +1,11 @@
 module Ch14 where
 
-import Prelude(Unit, (>>>), (<<<))
+import Prelude(Unit, unit, (>>>), (<<<), (<=), (>=), type (~>))
 
+import Data.Either (note, hush, Either(..))
+import Data.Maybe (Maybe(..))
 import Data.Functor(class Functor)
-
+import Data.Monoid (class Monoid, mempty)
 import Effect (Effect)
 import Effect.Console (log)
 
@@ -113,6 +115,83 @@ newtype F5 a = F5((Int -> a) -> Int)
 
 instance contravariantF5 :: Contravariant F5 where
   cmap f (F5 g) = F5 \h -> g (f <<< h)
+
+
+{- Invariant functor-}
+newtype Both a = Both(a -> a)
+
+class Invariant f where
+  imap :: ∀ a b. (a->b) -> (b->a) -> f a -> f b
+
+{-Natural transformations-}  
+
+hom :: Maybe ~> Either Unit
+hom Nothing = Left unit
+hom (Just x) = Right x 
+
+
+{- 
+        Monoid Homomorphism
+  
+  A function h : M -> N, whichs maps elements from Monoid M to Monoid N
+  is a homomorphism if:
+  
+  h( m1 . m2) = h(m1) * h(m2)
+
+  - this monoid homomorphism does not require be a inverse function
+  Homomorphism with inverse are called Isomorphism
+-}
+
+idHom :: ∀ m. Monoid m => m -> m
+idHom x = x
+
+constHom :: ∀ m. Monoid m => m -> m
+constHom _ = mempty
+
+{-
+        Isomorphism
+  Homomorphism with inverse function  
+-}
+
+maybeToEither :: Maybe ~> Either Unit
+maybeToEither Nothing = Left unit
+maybeToEither (Just x) = Right x
+
+eitherToMaybe :: Either Unit ~> Maybe
+eitherToMaybe (Left _) = Nothing
+eitherToMaybe (Right x) = Just x
+
+-- Iso :: ∀ a b. (a -> b) -> (b -> a) -> Iso a b
+data Iso a b = Iso (a -> b)(b -> a)
+iso :: ∀ f a b. Invariant f => Iso a b -> f a -> f b
+iso (Iso to from) = imap to from 
+
+identity :: ∀ a. a -> a
+identity x = x
+
+-- newtype Endo a = Endo (a -> a)
+-- instance invariantEndo :: Invariant Endo where
+--   imap fab fba (Endo aa) = Endo (fab <<< aa <<< fba)
+
+-- positive :: Maybe Int -> Maybe Int
+-- positive x = if x >= Just 0 then x else Nothing 
+
+-- isoMaybeEither :: String -> Iso(Maybe Int) (Either String Int)
+-- isoMaybeEither err = Iso (note err) hush
+
+-- positiveEither :: Either String Int -> Either String Int
+-- positiveEither = f where (Endo f) = 
+--   iso(isoMaybeEither "Not a positive integer") (Endo positive)
+
+class Profunctor p where
+  dimap:: ∀ a b c d. (b -> a) -> (c -> d) -> p a c -> p b d 
+
+data Moore s a b = Moore s (s -> b) (s -> a -> s)
+
+instance profunctorMoore ::Profunctor (Moore s) where
+  -- dimap :: ∀ a b c d. (c -> a) -> (b -> d) -> Moore s a b -> Moore s c d
+  dimap f g (Moore s0 output transform) = Moore s0 (g <<< output) (\s -> transform s <<< f )
+
 
 test :: Effect Unit
 test = do
