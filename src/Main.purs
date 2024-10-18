@@ -11,7 +11,8 @@ import Effect (Effect)
 -- import Ch9 as Ch9
 -- import Ch13 as Ch13
 -- import Ch14 as Ch14
-import Ch15 as Ch15
+-- import Ch15 as Ch15
+import Ch16 as Ch16
 
 main :: Effect Unit
-main = Ch15.test
+main = Ch16.test
