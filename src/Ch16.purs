@@ -1,20 +1,22 @@
 module Ch16 where
 
-import Prelude (Unit, (<$>), ($), (*), (<>), show, discard)
+import Prelude (Unit, (<$>), ($), (*), (<>), (+), (-), show, discard, flip, identity)
 import Effect (Effect)
 import Effect.Console (log)
+import Data.Foldable (class Foldable, foldr)
 import Data.Functor (class Functor)
 
 import Data.Either (Either(..))
 
-import Data.List (List(..), (:))
+import Data.List (List(..), (:), fromFoldable)
 import Data.Generic.Rep (class Generic)
 import Data.Monoid (class Monoid, mempty)
 import Data.Semigroup (class Semigroup)
-import Data.Tuple (Tuple(..))
 import Data.Show (class Show)
 import Data.Show.Generic (genericShow)
 import Data.String (toLower)
+import Data.Tuple (Tuple(..))
+
 
 
 data Maybe a = Nothing | Just a
@@ -56,6 +58,8 @@ since we can write Apply in terms of map
 
 pure f <*> x = f <$> x
   -}
+instance applicativeList :: Applicative List where
+  pure a = a : Nil 
 
 instance applicativeMaybe :: Applicative Maybe where
   pure = Just 
@@ -63,6 +67,11 @@ instance applicativeMaybe :: Applicative Maybe where
 instance functorMaybe :: Functor Maybe where
   -- map = liftA1  where liftA1 := pure f <*> x
   map f x =  pure f <*> x
+
+instance applyList :: Apply List where
+  apply Nil _ = Nil 
+  apply _ Nil = Nil 
+  apply l@(f : _) l1 = f <$> l1  --x : (apply l xs)
 
 instance applyMaybe :: Apply Maybe where
   apply (Just f) (Just x) = Just (f x)
@@ -145,6 +154,9 @@ instance applyEither :: Apply (Either a) where
   apply (Left y) _ = Left y
   apply _ (Left y)  = Left y
 
+instance applicativeEither :: Applicative (Either a) where
+  pure x = Right x
+
 -- assumes non nullable values
 fullName0 :: String -> String -> String -> String
 fullName0 first middle last = first <> " " <> middle <> " " <> last
@@ -179,8 +191,48 @@ errIfMissing Nothing err = Left err
 errIfMissing (Just x) _ = Right x
 
 
+-- 16.9 
+combineList :: ∀ a f. Applicative f => List(f a) -> f(List a)
+combineList Nil = pure Nil
+combineList (xf : xfs) = Cons <$> xf <*> combineList xfs
 
 
+testApplicativeEffects :: Effect Unit
+testApplicativeEffects = do 
+  log "========= Applicative Effects ========="
+  log $show $combineList $ fromFoldable [Just 1, Just 2, Just 3]
+  log $show $combineList $ fromFoldable [Just 1, Just 2, Nothing]
+  let right1 = Right 1 :: Either String Int
+      right2 = Right 2 :: Either String Int
+      left1  = Left "Fst error" :: Either String Int
+      left2  = Left "Snd error" :: Either String Int
+
+  log $show $combineList $ fromFoldable [right1, right2, left1]
+  log $show $combineList $ fromFoldable [right1, left2, right2, left1]
+  log $show $ (-) <$> Just 1 <*> Just 9
+  log $show $ flip (-) <$> Just 9 <*> Just 1
+
+  log "======================================="
+
+class (Functor t, Applicative t) <= Traversable t where
+  traverse :: ∀ a b m. Applicative m => (a -> m b) -> t a -> m (t b)
+  sequence :: ∀ a m. Applicative m => t (m a) -> m (t a)
+
+instance traversableList :: Traversable List where
+  traverse :: ∀ a b m. Applicative m => (a -> m b) -> List a -> m (List b)
+  traverse f = foldr (\x acc -> (:) <$> f x <*> acc ) (pure Nil)
+  sequence :: ∀ a m. Applicative m => List (m a) -> m (List a)
+  sequence = traverse identity
+
+-- 16.16
+
+class Functor f <= Alt f where
+  alt:: ∀ a. f a -> f a -> f a
+
+infixl 3 alt as <|>
+
+instance altList :: Alt List where
+  alt xs ys = foldr (:) ys xs 
 
 
 
@@ -188,3 +240,4 @@ test:: Effect Unit
 test = do
    testApplyToMaybe
    testApplicativeProductType
+   testApplicativeEffects
