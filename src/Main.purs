@@ -13,7 +13,8 @@ import Effect (Effect)
 -- import Ch14 as Ch14
 -- import Ch15 as Ch15
 -- import Ch16 as Ch16
-import Ch17 as Ch17
+-- import Ch17 as Ch17
+import Parser as P
 
 main :: Effect Unit
-main = Ch17.test
+main = P.test
