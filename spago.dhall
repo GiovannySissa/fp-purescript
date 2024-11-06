@@ -3,9 +3,10 @@ Welcome to a Spago project!
 You can edit this file as you like.
 -}
 { name = "my-project"
-, dependencies = [ 
+, dependencies = [     
     "bifunctors",
     "console",
+    "control",
     "contravariant",
     "effect",
     "either",
@@ -19,7 +20,8 @@ You can edit this file as you like.
     "profunctor",
     "strings",
     "psci-support",
-    "tuples"
+    "tuples",
+    "unfoldable"
     ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]
