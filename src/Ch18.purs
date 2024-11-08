@@ -8,16 +8,16 @@ import Effect (Effect)
 import Effect.Console (log)
 
 
-f :: Int -> Debuggable Int
-f x = Tuple "Added 10\n" (x + 10)
+f' :: Int -> Debuggable Int
+f' x = Tuple "Added 10\n" (x + 10)
 
 g :: Int -> Debuggable Int
 g x = Tuple "Multiply by 100\n" (x * 1000)
 
--- g <<< f 
+-- g <<< f' 
 h :: Int -> Debuggable Int
 h z = 
-  let Tuple s r = f z 
+  let Tuple s r = f' z 
       Tuple s' t = g r in
   Tuple (s <> s') t
 
@@ -31,7 +31,16 @@ h z =
 --   .  (c -> d)
 --   -> (b -> c)
 --   -> (b -> d)
-type Debuggable a = Tuple String a
+{-Let's generalize Deugable-}
+
+class Applicative s <= SideEffect s where
+  applySideEffect :: ∀ a b. s a -> (a -> s b) -> sb
+
+newtype Debuggable a = Debuggable(Tuple String a)
+
+instance functorDebuggable ::  Type
+
+-- type Debuggable a = Tuple String a
 
 {-As composeDebuggable and applyDebuggable are similar we migth write one in terms  of the other -}
 composeDebuggable 
@@ -49,8 +58,8 @@ composeDebuggable gc fc x =
 -- write h in terms of composeDebuggable
 
 h' :: Int -> Debuggable Int
--- h' z = composeDebuggable g f z 
-h' = g `composeDebuggable` f 
+-- h' z = composeDebuggable g f' z 
+h' = g `composeDebuggable` f' 
 
 makeFuncDebuggable :: ∀ a b. (a -> b) -> a -> Debuggable b
 makeFuncDebuggable fp z = makeDebuggable (fp z)
@@ -61,7 +70,7 @@ nse :: Int -> Int
 nse x = x + 42
 
 c :: Int -> Debuggable Int
-c = makeFuncDebuggable nse `composeDebuggable` f 
+c = makeFuncDebuggable nse `composeDebuggable` f' 
 
 applyDebuggable 
   :: ∀ a b
@@ -73,12 +82,12 @@ applyDebuggable (Tuple s x) sef =
   Tuple (s <> a ) b  
 
 y :: Debuggable Int
-y = (12345 # f) `applyDebuggable` g
+y = (12345 # f') `applyDebuggable` g
 
 makeDebuggable :: ∀ a. a -> Debuggable a
 makeDebuggable x = Tuple "" x
 y' :: Debuggable Int
-y' = makeDebuggable 12345 `applyDebuggable` f  `applyDebuggable` g
+y' = makeDebuggable 12345 `applyDebuggable` f'  `applyDebuggable` g
 
 
 -- testing
@@ -86,7 +95,7 @@ y' = makeDebuggable 12345 `applyDebuggable` f  `applyDebuggable` g
 simpleTest :: Effect Unit
 simpleTest = do 
   log $ show $ g 10
-  log $ show $ f 50
+  log $ show $ f' 50
   log $ show $ h 20
   log $ show $ h' 20
   log $ show $ c 5
