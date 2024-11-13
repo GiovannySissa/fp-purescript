@@ -2,6 +2,7 @@ module Ch18 where
 
 import Prelude
 
+import Data.Int.Bits ((.&.))
 import Data.Show.Generic (genericShow)
 import Data.Generic.Rep (class Generic)
 import Data.Newtype (class Newtype)
@@ -156,15 +157,66 @@ compose
   -> (b -> d)
 compose g f x = g $ f x
 
-composeKleisli 
+composeKleisli' 
   :: ∀ b c d m  
   . Monad m =>
      (c -> m d)
   -> (b -> m c)
   -> (b -> m d)
-composeKleisli g f x = g =<< f x
+composeKleisli' g f x = g =<< f x
 
+-- For reference Bind and Monad typeclass
 
+class Apply m <= Bind0 m where
+  bind :: ∀ a b. m a -> (a -> m b) -> m b
+
+infixl 1 bind as >>=
+
+class (Applicative m, Bind0 m) <= Monad0 m
+
+-- Monad instance for Maybe
+
+data Maybe a = Nothing | Just a
+
+derive instance genericMaybe :: Generic (Maybe a) _
+instance showMaybe :: Show a => Show(Maybe a) where
+  show = genericShow
+
+instance functorMaybe :: Functor Maybe where
+  map _ Nothing = Nothing
+  map f (Just x) = Just $ f x
+
+instance applyMaybe :: Apply Maybe where
+  apply :: ∀ a b. Maybe(a -> b) -> Maybe a -> Maybe b
+  -- apply Nothing _ = Nothing
+  -- apply (Just f) x = f <$> x
+  -- apply mf mx = mf >>= \f -> mx >>= pure <<< f
+  apply = ap
+
+ap :: ∀ a b m. Monad0 m => m (a -> b) -> m a -> m b
+ap mf mx = do 
+    f <- mf 
+    x <- mx
+    pure $ f x
+
+instance applicativeMaybe :: Applicative Maybe where
+  pure = Just
+
+instance bindMaybe :: Bind0 Maybe where
+  bind Nothing _ = Nothing
+  bind (Just x) mf = mf x
+
+instance monad0Maybe :: Monad0 Maybe
+
+composeKleisli 
+  :: ∀ b c d m  
+  . Monad0 m =>
+     (c -> m d)
+  -> (b -> m c)
+  -> (b -> m d)
+composeKleisli g f = \x -> f x >>= g
+
+infixr 5 composeKleisli as >=>
 -- testing
 
 simpleTest :: Effect Unit
@@ -177,8 +229,45 @@ simpleTest = do
   log $ show $ y
   log $ show $ y'
 
+oddTest :: Int -> Maybe Int
+oddTest x = if x .&. 1 == 1 then Just x else Nothing
+
+greaterThanTest :: Int -> Int -> Maybe Int
+greaterThanTest min x = if x > min then Just x else Nothing
+
+lessThanTest :: Int -> Int -> Maybe Int
+lessThanTest max x = if x < max then Just x else Nothing
+
+gauntlet' :: Int -> Maybe Int
+gauntlet' = oddTest >=> pure <<< (_ + 1) >=> greaterThanTest 10 >=> lessThanTest 20
+
+gauntlet'' :: Int -> Maybe Int
+gauntlet''  x = 
+  pure x >>= oddTest
+    >>= \o -> pure (o + 1)
+      >>= \y -> greaterThanTest 10 y
+        >>= \z -> lessThanTest 20 z
+
+gauntlet :: Int -> Maybe Int
+gauntlet x = do 
+  o <- oddTest x
+  -- y <- pure (o + 1)
+  let y = o + 1
+  z <- greaterThanTest 10 y
+  lessThanTest 20 z
+
+
+
+maybeMonadTest :: Effect Unit
+maybeMonadTest = do 
+  log "Maybe monads test"
+  log $ show $ gauntlet 14
+  log $ show $ gauntlet 1
+  log $ show $ gauntlet 93
+  log $ show $ gauntlet 17
 
 test:: Effect Unit
 test = do
   log "Monads test!"
   simpleTest
+  maybeMonadTest
