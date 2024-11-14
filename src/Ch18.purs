@@ -208,6 +208,56 @@ instance bindMaybe :: Bind0 Maybe where
 
 instance monad0Maybe :: Monad0 Maybe
 
+-- Monad instance for Either0
+data Either0 a b = Left a | Right b
+
+derive instance genericEither0 :: Generic (Either0 a b) _
+instance showEiher0 :: (Show a, Show b) => Show (Either0 a b) where
+  show = genericShow
+
+instance functorEither0 :: Functor(Either0 l) where
+  map _ (Left x) = Left x
+  map f (Right x) = Right $ f x
+
+instance applyEither0 :: Apply(Either0 l) where
+  -- apply (Left x) _  = Left x
+  -- apply (Right f) x = f <$> x
+  apply = ap
+
+instance applicativeEither0 :: Applicative(Either0 l) where
+  pure = Right
+
+instance bindEither0 :: Bind0(Either0 l) where
+  bind (Left x) _ = Left x
+  bind (Right x) mf = mf x
+
+instance monad0Either0 :: Monad0 (Either0 l)
+
+
+-- more realistic test for either
+
+fullName :: String -> String -> String -> String
+fullName first middle last = first <> " " <> middle <> " " <> last
+errIfMissing ::  Maybe String -> String -> (Either0 String String)
+errIfMissing Nothing err = Left err
+errIfMissing (Just x) _ = Right x
+
+fullNameEither :: Maybe String -> Maybe String -> Maybe String -> (Either0 String String)
+fullNameEither fst mid lst = do
+  first  <- errIfMissing fst "First name must exist"
+  middle <- mid `errIfMissing` "Middle name must exist"
+  last   <- lst `errIfMissing` "Last name must exist"
+  pure $ fullName first middle last
+
+fullNameEitherTest :: Effect Unit 
+fullNameEitherTest = do 
+  log "Fullname Either test"
+  log $ show $ fullNameEither (Just "H") (Just "K") (Just "Sm")
+  log $ show $ fullNameEither Nothing (Just "K") (Just "Sm")
+  log $ show $ fullNameEither (Just "H") Nothing (Just "Sm")
+  log $ show $ fullNameEither (Just "H") (Just "K") Nothing
+  log ""
+
 composeKleisli 
   :: ∀ b c d m  
   . Monad0 m =>
@@ -228,6 +278,7 @@ simpleTest = do
   log $ show $ c 5
   log $ show $ y
   log $ show $ y'
+  log ""
 
 oddTest :: Int -> Maybe Int
 oddTest x = if x .&. 1 == 1 then Just x else Nothing
@@ -237,6 +288,15 @@ greaterThanTest min x = if x > min then Just x else Nothing
 
 lessThanTest :: Int -> Int -> Maybe Int
 lessThanTest max x = if x < max then Just x else Nothing
+
+oddTestE :: Int -> Either0 String Int
+oddTestE x = if x .&. 1 == 1 then Right x else Left "Number is not odd"
+
+greaterThanTestE :: Int -> Int -> Either0 String Int
+greaterThanTestE min x = if x > min then Right x else Left $ "Number isn't greater than " <> show min 
+
+lessThanTestE :: Int -> Int -> Either0 String Int
+lessThanTestE max x = if x < max then Right x else Left $ "Number isn't less than " <> show max
 
 gauntlet' :: Int -> Maybe Int
 gauntlet' = oddTest >=> pure <<< (_ + 1) >=> greaterThanTest 10 >=> lessThanTest 20
@@ -256,7 +316,13 @@ gauntlet x = do
   z <- greaterThanTest 10 y
   lessThanTest 20 z
 
-
+gauntletE :: Int -> Either0 String Int
+gauntletE x = do 
+  o <- oddTestE x
+  -- y <- pure (o + 1)
+  let y = o + 1
+  z <-  greaterThanTestE 10 y
+  lessThanTestE 20 z
 
 maybeMonadTest :: Effect Unit
 maybeMonadTest = do 
@@ -265,9 +331,21 @@ maybeMonadTest = do
   log $ show $ gauntlet 1
   log $ show $ gauntlet 93
   log $ show $ gauntlet 17
+  log ""
+
+eitherMonadTest :: Effect Unit
+eitherMonadTest = do 
+  log "Either0 monads test"
+  log $ show $ gauntletE 14
+  log $ show $ gauntletE 1
+  log $ show $ gauntletE 93
+  log $ show $ gauntletE 17
+  log ""
 
 test:: Effect Unit
 test = do
   log "Monads test!"
   simpleTest
   maybeMonadTest
+  eitherMonadTest
+  fullNameEitherTest
