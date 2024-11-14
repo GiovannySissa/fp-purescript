@@ -170,6 +170,9 @@ composeKleisli' g f x = g =<< f x
 class Apply m <= Bind0 m where
   bind :: ∀ a b. m a -> (a -> m b) -> m b
 
+join :: ∀ a m. Bind0 m => m (m a) -> m a
+join mma = mma >>= identity
+
 infixl 1 bind as >>=
 
 class (Applicative m, Bind0 m) <= Monad0 m
@@ -249,14 +252,77 @@ fullNameEither fst mid lst = do
   last   <- lst `errIfMissing` "Last name must exist"
   pure $ fullName first middle last
 
-fullNameEitherTest :: Effect Unit 
-fullNameEitherTest = do 
-  log "Fullname Either test"
-  log $ show $ fullNameEither (Just "H") (Just "K") (Just "Sm")
-  log $ show $ fullNameEither Nothing (Just "K") (Just "Sm")
-  log $ show $ fullNameEither (Just "H") Nothing (Just "Sm")
-  log $ show $ fullNameEither (Just "H") (Just "K") Nothing
-  log ""
+-- Writer monad 
+newtype Writer w a = Writer (Tuple a w)
+derive  instance newtypeWriter :: Newtype(Writer w a) _
+
+derive instance genericWriter :: Generic(Writer w a) _
+
+instance showWriter :: (Show w, Show a) => Show (Writer w a) where
+  show = genericShow
+
+
+instance functorWriter :: Functor(Writer a) where
+  map f (Writer(Tuple x l)) = Writer (Tuple (f $ x) l)
+
+instance applyWriter :: Monoid a => Apply (Writer a) where
+  apply = ap
+  -- apply (Writer (Tuple f e)) (Writer(Tuple a e1)) = 
+  --   Writer(Tuple (f a) (e <> e1))
+
+instance applicativeWriter :: Monoid a => Applicative (Writer a) where
+  pure x = Writer(Tuple x mempty)
+
+instance bindWriter :: Monoid w => Bind0 (Writer w) where
+  bind (Writer (Tuple a e)) mf = 
+    mf a # \(Writer (Tuple a1 e1)) -> Writer(Tuple a1 (e <> e1))
+
+instance monadWriter :: Monoid w => Monad0(Writer w)
+
+-- writer api (helper functions)
+tell :: ∀ a w. w -> Writer w Unit
+tell w = Writer (Tuple unit w)
+
+-- Reader Monad 
+type Config = 
+  {
+    numDecimalPlaces :: Int,
+    debug :: Boolean
+  }
+newtype Reader r a = Reader(r -> a)
+
+runReader :: ∀ a r. Reader r a -> r -> a
+runReader (Reader f) = f
+
+derive instance newtypeReader :: Newtype (Reader r a) _
+derive instance genericReader :: Generic(Reader r a) _ 
+-- instance showReader :: (Show r, Show a) => Show (Reader r a) where
+--   show = genericShow 
+
+instance functorInstance :: Functor (Reader r) where
+  map f (Reader g) = Reader \r1 -> f $g r1
+
+instance applyReader :: Apply(Reader r) where
+  apply:: ∀ a b. (Reader r (a->b)) -> (Reader r  a) -> (Reader r b)
+  apply (Reader ff)(Reader fx) = Reader \r -> ff r $ fx r
+
+instance applicativeReader :: Applicative(Reader r) where 
+  pure = Reader <<< const 
+
+instance bindReader :: Bind0 (Reader r) where
+  bind :: ∀ a b. Reader r a -> (a -> Reader r b) -> Reader r b
+  bind (Reader fx) f = Reader \r -> runReader(f $ fx r) r
+-- funcWithConfig :: Int -> Reader Config Int
+-- funcWithConfig v = do
+--   { numDecimalPlaces } <- ask 
+instance monad0Reader :: Monad0 (Reader r)
+-- reader API
+ask :: ∀ r. Reader r r
+ask = Reader identity
+
+asks :: ∀ a r. (r -> a) -> Reader r a
+asks f = Reader \r -> f r
+
 
 composeKleisli 
   :: ∀ b c d m  
@@ -324,6 +390,19 @@ gauntletE x = do
   z <-  greaterThanTestE 10 y
   lessThanTestE 20 z
 
+fullNameEitherTest :: Effect Unit 
+fullNameEitherTest = do 
+  log "Fullname Either test"
+  log $ show $ fullNameEither (Just "H") (Just "K") (Just "Sm")
+  log $ show $ fullNameEither Nothing (Just "K") (Just "Sm")
+  log $ show $ fullNameEither (Just "H") Nothing (Just "Sm")
+  log $ show $ fullNameEither (Just "H") (Just "K") Nothing
+  log ""
+
+doNothingWithLog :: Writer (Array String) Int
+doNothingWithLog = 
+  tell ["We did nothing"] >>= \_ -> pure 0
+
 maybeMonadTest :: Effect Unit
 maybeMonadTest = do 
   log "Maybe monads test"
@@ -349,3 +428,4 @@ test = do
   maybeMonadTest
   eitherMonadTest
   fullNameEitherTest
+  log $show $doNothingWithLog
