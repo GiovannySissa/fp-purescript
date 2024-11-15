@@ -282,6 +282,8 @@ instance monadWriter :: Monoid w => Monad0(Writer w)
 -- writer api (helper functions)
 tell :: ∀ a w. w -> Writer w Unit
 tell w = Writer (Tuple unit w)
+runWriter :: ∀ a s. Writer s a ->  Tuple a s
+runWriter (Writer f) = f 
 
 -- Reader Monad 
 type Config = 
@@ -322,6 +324,73 @@ ask = Reader identity
 
 asks :: ∀ a r. (r -> a) -> Reader r a
 asks f = Reader \r -> f r
+
+-- State monad
+newtype State s a = State (s -> Tuple a s)
+
+instance functorState :: Functor (State s) where
+  map f (State fs) = State \s -> fs s # \(Tuple x s') -> Tuple (f x) s'
+
+instance applyState :: Apply(State s) where
+  apply :: ∀ a b. (State s (a->b)) -> State s a -> State s b 
+  apply (State ff) (State fx) = State \s -> ff s 
+    # \(Tuple g s') ->  fx s' 
+      # \(Tuple a s'') -> Tuple (g a) s''
+
+instance applicativeState :: Applicative (State s) where
+  pure x = State \s -> Tuple x s
+
+instance bindState :: Bind0 (State s) where 
+  bind :: ∀ a b. State s a -> (a -> State s b) -> State s b
+  -- bind (State fx) ff = State \s -> fx s # \(Tuple a s') -> ff a # \(Tuple b s'') -> Tuple b s'' 
+  bind (State fx) ff = 
+    State \s -> fx s 
+      # \(Tuple x s') -> runState(ff x) s' 
+        
+instance monadState :: Monad0 (State s)
+-- State api
+
+get :: ∀ s. State s s
+get = State \s -> Tuple s s
+put :: ∀ s. s -> State s Unit
+put ns = State \_ -> Tuple unit ns 
+modify:: ∀ s. (s -> s) -> State s s
+modify f = State \s -> let ns = f s in Tuple ns ns
+modify_:: ∀ s. (s -> s) -> State s Unit 
+modify_ f = State \s -> Tuple unit (f s)
+
+runState :: ∀ a s. State s a -> (s -> Tuple a s) 
+runState (State f) = f 
+
+-- using state as validation
+
+errIfMissingS ::  Maybe String -> String -> State (Array String) String
+errIfMissingS Nothing err = 
+  modify_ (_ <> [err]) >>= \_ -> pure mempty
+errIfMissingS (Just x) _ = pure x
+
+
+fullNameValid :: Maybe String -> Maybe String -> Maybe String -> State (Array String) String
+fullNameValid fst mid lst = do
+  first  <- errIfMissingS fst "First name must exist"
+  middle <- mid `errIfMissingS` "Middle name must exist"
+  last   <- lst `errIfMissingS` "Last name must exist"
+  pure $ fullName first middle last
+
+-- using writer as validation
+
+errIfMissingW ::  Maybe String -> String -> Writer (Array String) String
+errIfMissingW Nothing err = 
+  tell [err] >>= \_ -> pure mempty
+errIfMissingW (Just x) _ = pure x
+
+
+fullNameValidW :: Maybe String -> Maybe String -> Maybe String -> Writer (Array String) String
+fullNameValidW fst mid lst = do
+  first  <- errIfMissingW fst "First name must exist"
+  middle <- mid `errIfMissingW` "Middle name must exist"
+  last   <- lst `errIfMissingW` "Last name must exist"
+  pure $ fullName first middle last
 
 
 composeKleisli 
@@ -421,6 +490,18 @@ eitherMonadTest = do
   log $ show $ gauntletE 17
   log ""
 
+stateMonadTest :: Effect Unit
+stateMonadTest = do 
+  log "State monad test"
+  log $ show $ runState (fullNameValid Nothing (Just "") Nothing) []
+  log ""
+  
+writerMonadTest :: Effect Unit
+writerMonadTest = do 
+  log "Writer monad test"
+  log $ show $ runWriter (fullNameValidW Nothing (Just "") Nothing)
+  log ""
+  
 test:: Effect Unit
 test = do
   log "Monads test!"
@@ -429,3 +510,5 @@ test = do
   eitherMonadTest
   fullNameEitherTest
   log $show $doNothingWithLog
+  stateMonadTest
+  writerMonadTest
