@@ -392,14 +392,23 @@ fullNameValidW fst mid lst = do
   last   <- lst `errIfMissingW` "Last name must exist"
   pure $ fullName first middle last
 
+-- Kleisli Category 
+class Semigroupoid :: forall k. (k -> k -> Type) -> Constraint
+class Semigroupoid a where
+  compose0 :: ∀ b c d. a c d -> a b c -> a b d
 
+newtype Kleisli :: forall k. (k -> Type) -> Type -> k -> Type
+newtype Kleisli m a b = Kleisli (a -> m b)
+
+instance semigroupoidKleisli :: Monad0 m => Semigroupoid (Kleisli m) where
+  compose0 (Kleisli g) (Kleisli f) = Kleisli $ g >=> f
 composeKleisli 
-  :: ∀ b c d m  
+  :: ∀ a b c m  
   . Monad0 m =>
-     (c -> m d)
-  -> (b -> m c)
-  -> (b -> m d)
-composeKleisli g f = \x -> f x >>= g
+     (b -> m c)
+  -> (a -> m b)
+  -> (a -> m c)
+composeKleisli g f x = f x >>= g
 
 infixr 5 composeKleisli as >=>
 -- testing
