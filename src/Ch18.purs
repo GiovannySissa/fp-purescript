@@ -273,7 +273,7 @@ instance applyWriter :: Monoid a => Apply (Writer a) where
 instance applicativeWriter :: Monoid a => Applicative (Writer a) where
   pure x = Writer(Tuple x mempty)
 
-instance bindWriter :: Monoid w => Bind0 (Writer w) where
+instance bind0Writer :: Monoid w => Bind0 (Writer w) where
   bind (Writer (Tuple a e)) mf = 
     mf a # \(Writer (Tuple a1 e1)) -> Writer(Tuple a1 (e <> e1))
 

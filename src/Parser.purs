@@ -233,7 +233,10 @@ range' :: ∀ e. Int -> Int -> Parser e Char -> Parser e String
 range' min max p = fromCharArray <$> range (:) min max p
 
 constChar :: ∀ e. ParserError e => Char -> Parser e Unit
-constChar c = void $ satisfy (singleton c) (_ == c)
+constChar = void <<< constChar'
+
+constChar' :: ∀ e. ParserError e => Char -> Parser e Char
+constChar' c = satisfy (singleton c) (_ == c)
 
 digitsToNum :: String -> Int
 digitsToNum = fromMaybe 0 <<< fromString
@@ -287,6 +290,19 @@ many cons p = fromNonEmpty cons <$> some cons p <|> pure none
 
 many' :: ∀ e. Parser e Char -> Parser e String
 many' p = fromCharArray <$> many (:) p
+
+
+digits :: ∀ e. ParserError e => Parser e String
+digits = some' digit
+
+ugly :: ∀ e. ParserError e => Parser e (Array String)
+ugly = do
+  nums <- range' 1 4 digit
+  constChar ','
+  constChar ' '
+  alp  <- some' (letter <|> constChar' ' ')
+  lnum <- many' digit
+  pure [nums, alp, lnum]
 
 testParser:: Effect Unit 
 testParser = do 

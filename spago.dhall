@@ -14,7 +14,7 @@ You can edit this file as you like.
     "foldable-traversable",
     "integers",
     "lists",
-    "maybe",
+    "maybe",    
     "newtype",
     "nonempty",
     "prelude",
@@ -22,6 +22,7 @@ You can edit this file as you like.
     "strings",
     "psci-support",
     "tuples",
+    "transformers",
     "unfoldable",
     "unicode"
     ]

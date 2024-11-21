@@ -1,11 +1,14 @@
 module Ch19 where
 
 import Prelude
+-- import Ch19a (Writer(..))
 
-import Data.Show.Generic (genericShow)
+import Data.Tuple (Tuple(..))
 import Data.Generic.Rep (class Generic)
+import Data.Show.Generic (genericShow)
 import Effect (Effect)
 import Effect.Console (log)
+
 
 -- Writing Monad for Maybe
 data Maybe a = Nothing | Just a
@@ -56,6 +59,71 @@ instance bindEither :: Bind (Either a) where
 
 instance monadEither :: Monad (Either a)
 
+-- RWS monad
+
+-- newtype Reader r a = Reader (r -> a)
+-- newtype Writer w a = Writer (Tuple a w)
+-- newtype State s a = State ( s -> Tuple a s)
+
+type RWSResult r w s = {
+  r :: r,
+  w :: w,
+  s :: s
+}
+
+newtype RWS r w s a = 
+  RWS (RWSResult r w s -> Tuple a (RWSResult r w s))
+{-
+  g :: RWSResult r w s -> Tuple a (RWSResult r w s)
+  rws :: RWSResult r w s 
+  g rsw :: Tuple a (RWSResult r w s)
+  f :: a -> b 
+-}
+instance functorRWS :: Functor (RWS r w s) where  
+  map f (RWS g) = 
+    RWS \rws -> g rws
+      # \(Tuple a rsw') -> Tuple (f a) rsw'
+
+instance applyRWS ::Monoid w => Apply (RWS r w s) where
+  apply = ap
+
+instance applicativeRWS :: Monoid w => Applicative (RWS r w s) where
+  -- pure x = RWS \rws ->  Tuple x rsw
+  pure x = RWS \{r, s} ->  Tuple x {r, w: mempty, s }
+
+instance bindRWS :: Monoid w => Bind (RWS r w s) where
+  -- bind :: (RWS r w s a) (a -> RWS r w s b) -> (RWS r w s b)
+  bind (RWS g) f = RWS \rws -> g rws 
+    # \(Tuple x rws'@{w}) -> runRWS (f x) rws'
+     # \(Tuple y rws''@{w: w'}) -> Tuple y (rws'' {w = w <> w'})
+
+-- instance bindWriter :: Monoid w => Bind (Writer w) where
+--   bind:: ∀ a b. Writer w a -> (a -> Writer w b) -> Writer w b
+--   bind (Writer (Tuple x w1)) f  = f x 
+--     # \(Writer (Tuple x' w2)) -> Writer (Tuple x' (w1 <> w2))
+
+instance monadRWS :: Monoid w => Monad (RWS r w s) 
+
+runRWS :: ∀ r w s a.
+  RWS r w s a 
+  -> RWSResult r w s 
+  -> Tuple a (RWSResult r w s)
+runRWS (RWS f) = f
+
+-- RWS api
+-- "pushes" data from pure computation to monadic
+tell :: ∀ r w s. w -> RWS r w s Unit
+tell w = RWS \{r, s} -> Tuple unit {r, w, s}
+
+-- pulls data from monadic computation to pure
+ask  :: ∀ r w s. Monoid w => RWS r w s r
+ask = RWS \ {r, s} -> Tuple r {r, w: mempty, s}
+
+get  :: ∀ r w s. Monoid w => RWS r w s s
+get = RWS \ {r, s} -> Tuple s {r, w: mempty, s}
+-- push
+put :: ∀ r w s. Monoid w => s -> RWS r w s Unit
+put s = RWS \ {r} -> Tuple unit {r, w: mempty, s}
 -- Testing 
 maybeTest :: Effect Unit
 maybeTest = do 
@@ -91,8 +159,31 @@ eitherTest = do
     pure $ y + 54
   log ""
 
+type Config = { debugModeOn :: Boolean }
+
+type Counter = Int
+
+rwsExec :: RWS Config (Array String) Counter Unit
+rwsExec = do
+  tell ["test the log"]
+  tell ["test the log2", "test the log3"]
+  config <- ask
+  tell ["the config is " <> show config]
+  counter <- get
+  tell ["old counter is " <> show counter]
+  put $ counter + 1
+  newCounter <- get  
+  tell ["new counter is " <> show newCounter]
+  pure unit
+
+rwsTest :: Effect Unit
+rwsTest = do
+  log "RWS Test"
+  log $ show $ runRWS rwsExec {r : { debugModeOn : true }, w: mempty, s: 0}
+  log ""
 test :: Effect Unit
 test = do
   log "CH 19 Placeholder"
   maybeTest
   eitherTest
+  rwsTest
