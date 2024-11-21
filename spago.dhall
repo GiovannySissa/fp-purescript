@@ -3,7 +3,8 @@ Welcome to a Spago project!
 You can edit this file as you like.
 -}
 { name = "my-project"
-, dependencies = [     
+, dependencies = [  
+    "arrays", 
     "bifunctors",
     "console",
     "control",
@@ -21,7 +22,8 @@ You can edit this file as you like.
     "strings",
     "psci-support",
     "tuples",
-    "unfoldable"
+    "unfoldable",
+    "unicode"
     ]
 , packages = ./packages.dhall
 , sources = [ "src/**/*.purs", "test/**/*.purs" ]
