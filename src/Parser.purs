@@ -2,7 +2,7 @@ module Parser where
 
 import Prelude
 
-
+import Control.Lazy (class Lazy, defer)
 import Control.Monad (ap)
 import Control.Alt (class Alt, (<|>))
 import Data.Array ((:))
@@ -11,13 +11,14 @@ import Data.Traversable (sequence, class Traversable)
 
 import Data.String.CodePoints (codePointFromChar)
 import Data.CodePoint.Unicode (isDecDigit, isAlpha, isAlphaNum)
+import Data.Generic.Rep (class Generic)
 import Data.Int (fromString)
 import Data.Either (Either(..))
-import Data.Tuple (Tuple(..))
 import Data.Maybe (Maybe(..), fromMaybe)
+import Data.NonEmpty (NonEmpty(..), (:|), fromNonEmpty)
 import Data.String.CodeUnits (uncons, fromCharArray, singleton)
-import Data.Generic.Rep (class Generic)
 import Data.Show.Generic (genericShow)
+import Data.Tuple (Tuple(..))
 
 import Effect (Effect)
 import Effect.Console (log)
@@ -257,6 +258,36 @@ monthFirst = do
 date :: ∀ e. ParserError e => Parser e DateParts
 date = yearFirst <|> monthFirst <|> fail (invalidChar "date")
 
+
+instance lazyParser :: Lazy (Parser e a) where
+  defer :: (Unit -> Parser e a) -> Parser e a
+  defer f = Parser \s -> parse(f unit) s
+
+some :: ∀ f m a.  
+  Unfoldable f
+  => Alt m
+  => Applicative m
+  => Lazy (m (f a))   
+  => (a -> f a -> f a) 
+  -> m a 
+  -> m (NonEmpty f a)
+some cons p = (:|) <$> p <*> defer \_ -> many cons p 
+
+some' :: ∀ e. Parser e Char -> Parser e String
+some' p =  fromCharArray <<< fromNonEmpty (:) <$> some (:) p
+
+many :: ∀  a f m .
+  Unfoldable f
+  => Alt m
+  => Applicative m
+  => Lazy (m (f a))    
+  => (a -> f a -> f a)
+  -> m a -> m (f a)
+many cons p = fromNonEmpty cons <$> some cons p <|> pure none
+
+many' :: ∀ e. Parser e Char -> Parser e String
+many' p = fromCharArray <$> many (:) p
+
 testParser:: Effect Unit 
 testParser = do 
   log "============= Test Parser =============="
@@ -286,6 +317,11 @@ testParser = do
   log $ show $ parse' date "11/20/2024"
   log $ show $ parse' date "2024-11-20"
   log $ show $ parse' date "2024/11-20"
+  log ""
+  log "Some and Many parser"
+  log $ show $ parse' (some' digit) "2343423423abc"
+  log $ show $ parse' (many' digit) "_2343423423abc"
+  log $ show $ parse' (some' digit) "_2343423423abc"
   
 
 -- Specific implementantion just for Arrays
