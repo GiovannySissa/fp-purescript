@@ -17,8 +17,6 @@ import Effect (Effect)
 import Effect.Console as Console
 
 
-
-newtype ReaderT r m a  = ReaderT (r -> m a)
 {-
 newtype StateT s m a   = StateT (s -> m (Tuple a s))
 newtype ExceptT e m a = ExceptT(m (Either e a))
@@ -72,6 +70,42 @@ instance bindWriterT :: (Semigroup w, Monad m) => Bind (WriterT w m) where
 
 instance monadWriterT :: (Monoid w, Monad m) => Monad(WriterT w m)
 
+-- ReaderT 
+
+newtype ReaderT r m a  = ReaderT (r -> m a)
+
+runReaderT :: ∀ r m a. ReaderT r m a -> (r -> m a)
+runReaderT (ReaderT mf) = mf 
+
+instance functorReaderT :: Functor m => Functor(ReaderT r m) where
+  map f (ReaderT mx) = ReaderT \r -> f <$> mx r 
+
+{-
+  mf :: r -> m (a -> b)
+  mx :: r -> m a
+-}
+instance applyReaderT :: Apply m => Apply (ReaderT r m) where
+  apply :: ∀ a b. ReaderT r m (a -> b) -> ReaderT r m a -> ReaderT r m b
+  apply (ReaderT fmf) (ReaderT fmx) = ReaderT \r -> fmf r <*> fmx r
+  -- apply (ReaderT mf) (ReaderT mx) = ReaderT \r -> do
+  --   f <- mf r
+  --   x <- mx r
+  --   pure $ f x
+
+instance applicativeReaderT ::  Applicative m => Applicative (ReaderT r m) where
+  -- pure x = ReaderT \_ -> pure x
+  -- pure x = ReaderT $ const $ pure x
+  pure = ReaderT <<< const <<< pure 
+
+instance bindReaderT :: Monad m => Bind(ReaderT r m) where
+  bind :: ∀ a b . ReaderT r m a -> (a -> ReaderT r m b) -> ReaderT r m b
+  bind (ReaderT fmx) f = ReaderT \r -> do 
+    x <- fmx r
+    runReaderT (f x) r
+
+instance monadReaderT :: Monad w => Monad (ReaderT r w)
+  
+ 
 type AppStack e w s a = ExceptT e (WriterT w (StateT s Effect)) a
 type AppM = AppStack String String Int Unit
 
