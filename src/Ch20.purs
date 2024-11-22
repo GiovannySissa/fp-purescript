@@ -4,8 +4,10 @@ import Prelude
 
 -- import Data.Identity (Identity)
 import Control.Monad.Except.Trans (ExceptT, runExceptT, throwError)
-import Control.Monad.State.Trans (StateT, runStateT, get, put)
--- import Control.Monad.Writer.Trans (class MonadTell, WriterT, runWriterT, tell)
+import Control.Monad.State.Trans (class MonadState, StateT, runStateT, get, put, state)
+import Control.Monad.Writer.Trans (class MonadTell, tell)
+import Control.Monad.Trans.Class (class MonadTrans, lift)
+import Control.Monad.Reader (class MonadAsk)
 
 
 import Data.Tuple (Tuple(..))
@@ -70,6 +72,16 @@ instance bindWriterT :: (Semigroup w, Monad m) => Bind (WriterT w m) where
 
 instance monadWriterT :: (Monoid w, Monad m) => Monad(WriterT w m)
 
+instance monadTellWriterT :: (Monoid w, Monad m) => MonadTell w (WriterT w m) where
+  tell = WriterT <<< pure <<< Tuple unit
+
+instance monadStateWriterT :: (Monoid w, MonadState s m) => MonadState s (WriterT w m) where
+  state f = lift (state f)
+
+instance monadTransWriterT :: Monoid w => MonadTrans (WriterT w) where
+  lift m = WriterT do
+    a <- m
+    pure $ Tuple a mempty
 -- ReaderT 
 
 newtype ReaderT r m a  = ReaderT (r -> m a)
@@ -92,10 +104,10 @@ instance applyReaderT :: Apply m => Apply (ReaderT r m) where
   --   x <- mx r
   --   pure $ f x
 
-instance applicativeReaderT ::  Applicative m => Applicative (ReaderT r m) where
+instance applicativeReaderT :: Monad m => Applicative (ReaderT r m) where
   -- pure x = ReaderT \_ -> pure x
   -- pure x = ReaderT $ const $ pure x
-  pure = ReaderT <<< const <<< pure 
+  pure = lift <<< pure 
 
 instance bindReaderT :: Monad m => Bind(ReaderT r m) where
   bind :: ∀ a b . ReaderT r m a -> (a -> ReaderT r m b) -> ReaderT r m b
@@ -106,50 +118,69 @@ instance bindReaderT :: Monad m => Bind(ReaderT r m) where
 instance monadReaderT :: Monad w => Monad (ReaderT r w)
   
  
+-- class MonadTrans t where
+--   lift :: forall m a. Monad m => m a -> t m a
+
+instance monadTransReaderT :: MonadTrans (ReaderT r) where
+  lift = ReaderT <<< const 
+
+-- class Monad m <= MonadAsk r m | m -> r where
+--   ask :: m r
+
+instance monadAskReaderT :: Monad m => MonadAsk r (ReaderT r m) where
+  ask :: ReaderT r m r 
+  ask = ReaderT pure
+
+-- class (Semigroup w, Monad m) <= MonadTell w m | m -> w where
+--   tell :: w -> m Unit
+
+instance monadTellReaderT :: MonadTell w m => MonadTell w (ReaderT r m) where
+  tell = lift <<< tell
+
+
+
+
+
 type AppStack e w s a = ExceptT e (WriterT w (StateT s Effect)) a
 type AppM = AppStack String String Int Unit
 
 type StackResult = Tuple (Tuple (Either String Unit) String) Int
 
--- log :: ∀ m. MonadTell String m => String -> m Unit
--- log s = tell $ s <> "\n"
+log :: ∀ m. MonadTell String m => String -> m Unit
+log s = tell $ s <> "\n"
 
--- type AppEffects = 
---   { log :: String
---   , state :: Int
---   , result :: Maybe Unit
---   }
+type AppEffects = 
+  { log :: String
+  , state :: Int
+  , result :: Maybe Unit
+  }
 
--- type AppResult = Tuple (Maybe String) AppEffects
--- results :: StackResult -> AppResult
--- results (Tuple (Tuple (Left err) l) s) 
---   = Tuple (Just err) { log : l, state: s, result: Nothing } 
--- results (Tuple (Tuple (Right _) l) s) 
---   = Tuple Nothing { log : l, state: s, result: Just unit } 
--- runApp :: Int -> AppM -> Effect AppResult
--- runApp s = map results
---   <<< flip runStateT s
---   <<< runWriterT
---   <<< runExceptT
+type AppResult = Tuple (Maybe String) AppEffects
+results :: StackResult -> AppResult
+results (Tuple (Tuple (Left err) l) s) 
+  = Tuple (Just err) { log : l, state: s, result: Nothing } 
+results (Tuple (Tuple (Right _) l) s) 
+  = Tuple Nothing { log : l, state: s, result: Just unit } 
+runApp :: Int -> AppM -> Effect AppResult
+runApp s = map results
+  <<< flip runStateT s
+  <<< runWriterT
+  <<< runExceptT
 
 
--- app :: AppM 
--- app = do
---   log "Starting app"
---   n <- get
---   when (n == 0) $ void $throwError "WE CANNOT HAVE A 0 STATE!"
---   put $ n + 1
---   log "increment state"
---   pure unit
+app :: AppM 
+app = do
+  log "Starting app"
+  n <- get
+  when (n == 0) $ void $throwError "WE CANNOT HAVE A 0 STATE!"
+  put $ n + 1
+  log "increment state"
+  pure unit
 
--- test :: Effect Unit
--- test = do
---   result1 <- runApp 0 app
---   Console.log $ show result1
---   result2 <- runApp 99 app
---   Console.log $ show result2
-
--- Remove later
 test :: Effect Unit
 test = do
-  Console.log "CH20 placeholder"
+  result1 <- runApp 0 app
+  Console.log $ show result1
+  result2 <- runApp 99 app
+  Console.log $ show result2
+
