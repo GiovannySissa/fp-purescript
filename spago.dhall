@@ -25,6 +25,7 @@ You can edit this file as you like.
     "tuples",
     "transformers",
     "unfoldable",
+    "undefined",
     "unicode"
     ]
 , packages = ./packages.dhall
