@@ -3,14 +3,21 @@ module Ch21 where
 import Prelude
 
 import Data.Tuple (Tuple (..))
+import Data.Either (Either(..))
+import Data.Maybe (Maybe(..))
+
+import Control.Monad.Error.Class (class MonadThrow, class MonadError, throwError, catchError)
+import Control.Monad.Except.Trans (ExceptT, runExceptT)
 import Control.Monad.State.Class (class MonadState)
+import Control.Monad.State.Trans ( get, put)
+
 import Control.Monad.Reader.Class (class MonadAsk, ask)
 import Control.Monad.Writer.Class (class MonadTell, tell)
+import Control.Monad.Writer.Trans (WriterT, runWriterT)
 import Control.Monad.Trans.Class (class MonadTrans, lift)
-import Control.Monad.Error.Class (class MonadThrow, class MonadError, throwError, catchError)
 
 import Effect (Effect)
-import Effect.Console (log)
+import Effect.Console as Console
 
 -- newtype ReaderT r m a = ReaderT (r -> m a)
 -- newtype WriterT w m a = WriterT (m (Tuple a w))
@@ -80,7 +87,52 @@ instance monadErrorStateT :: MonadError e m => MonadError e (StateT s m) where
   catchError :: ∀ a. StateT s m a -> (e -> StateT s m a) -> StateT s m a
   catchError (StateT fmx) fm = StateT \s ->
                     catchError (fmx s) \e ->  runStateT (fm e) s
+-- Testing 
+type AppStack e w s a = ExceptT e (WriterT w (StateT s Effect)) a
+type AppM = AppStack String String Int Unit
+
+type StackResult = Tuple (Tuple (Either String Unit) String) Int
+
+type AppEffects = 
+  { log :: String
+  , state :: Int
+  , result :: Maybe Unit
+  }
+
+type AppResult = Tuple (Maybe String) AppEffects
+
+results :: StackResult -> AppResult
+results (Tuple (Tuple (Left err) l) s) 
+  = Tuple (Just err) { log : l, state: s, result: Nothing } 
+results (Tuple (Tuple (Right _) l) s) 
+  = Tuple Nothing { log : l, state: s, result: Just unit } 
+
+app :: AppM
+app = do
+  log "Starting app..."
+  st <- get
+  when (st == 0) $ void $throwError "WE CANNOT HAVE 0 STATE"
+  put (st + 1) 
+  log "Incremented state"
+  pure unit 
+
+runApp :: Int-> AppM -> Effect AppResult
+runApp st ap = 
+  results <$> ( flip runStateT st $ runWriterT $ runExceptT ap)
+-- runApp st  = 
+   -- (results <$> _)
+  -- <<< flip runStateT st
+  -- <<< runWriterT
+  -- <<< runExceptT 
+
+
+log :: ∀ m. MonadTell String m => String -> m Unit
+log s = tell $ s <> "\n"
 
 test :: Effect Unit
 test = do
-  log "Placeholder Ch21"
+  Console.log "Placeholder Ch21"
+  result1 <- runApp 0 app
+  Console.log $ show result1
+  result2 <- runApp 99 app
+  Console.log $ show result2
